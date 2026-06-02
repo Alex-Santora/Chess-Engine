@@ -25,7 +25,22 @@
     <p id="thinkingBox" hidden>CPU is thinking...</p>
     <p id="evaluationBox" hidden>Evaluation: 0.00</p>
 
-    <div id="board" class="board" aria-label="Chess board"></div>
+    <section class="game-layout" aria-label="Chess game">
+      <div id="board" class="board" aria-label="Chess board"></div>
+
+      <aside class="move-panel" aria-label="Move history">
+        <div class="history-header">
+          <h2>Moves</h2>
+          <button id="copyMovesBtn" type="button">Copy</button>
+        </div>
+        <textarea id="moveHistoryBox" readonly spellcheck="false" aria-label="Move history in chess notation"></textarea>
+        <div class="replay-controls" aria-label="Move replay controls">
+          <button id="backMoveBtn" type="button" title="Back one move" aria-label="Back one move">&larr;</button>
+          <span id="replayStatus" aria-live="polite">Live position</span>
+          <button id="forwardMoveBtn" type="button" title="Forward one move" aria-label="Forward one move">&rarr;</button>
+        </div>
+      </aside>
+    </section>
 
     <p id="lastMoveBox">Last CPU move: none</p>
   </main>
