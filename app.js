@@ -103,6 +103,21 @@ const pieceNames = {
   k: "Black king"
 };
 
+const pieceImages = {
+  P: "assets/pieces/wp.svg",
+  N: "assets/pieces/wn.svg",
+  B: "assets/pieces/wb.svg",
+  R: "assets/pieces/wr.svg",
+  Q: "assets/pieces/wq.svg",
+  K: "assets/pieces/wk.svg",
+  p: "assets/pieces/bp.svg",
+  n: "assets/pieces/bn.svg",
+  b: "assets/pieces/bb.svg",
+  r: "assets/pieces/br.svg",
+  q: "assets/pieces/bq.svg",
+  k: "assets/pieces/bk.svg"
+};
+
 function opposite(color) {
   return color === WHITE ? BLACK : WHITE;
 }
@@ -295,6 +310,51 @@ class Board {
       if (!next.isInCheck(side)) legal.push(move);
     }
     return legal;
+  }
+
+  san(move) {
+    const piece = this.board[move.fromRow][move.fromCol];
+    const kind = piece.toUpperCase();
+    const capture = move.isEnPassant || this.board[move.toRow][move.toCol] !== EMPTY;
+    let notation = "";
+
+    if (move.isCastle) {
+      notation = move.toCol === 6 ? "O-O" : "O-O-O";
+    } else {
+      if (kind === "P") {
+        if (capture) notation += FILES[move.fromCol];
+      } else {
+        notation += kind;
+        notation += this.disambiguation(move, piece);
+      }
+
+      if (capture) notation += "x";
+      notation += move.toSquare();
+      if (move.promotion) notation += `=${move.promotion.toUpperCase()}`;
+    }
+
+    const next = this.makeMove(move);
+    const opponent = next.turn;
+    if (next.isInCheck(opponent)) {
+      notation += next.generateLegalMoves(opponent).length ? "+" : "#";
+    }
+    return notation;
+  }
+
+  disambiguation(move, piece) {
+    const kind = piece.toUpperCase();
+    const alternatives = this.generateLegalMoves(pieceColor(piece)).filter((candidate) => {
+      if (candidate.fromRow === move.fromRow && candidate.fromCol === move.fromCol) return false;
+      if (candidate.toRow !== move.toRow || candidate.toCol !== move.toCol) return false;
+      return this.board[candidate.fromRow][candidate.fromCol].toUpperCase() === kind;
+    });
+
+    if (!alternatives.length) return "";
+    const sameFile = alternatives.some((candidate) => candidate.fromCol === move.fromCol);
+    const sameRank = alternatives.some((candidate) => candidate.fromRow === move.fromRow);
+    if (!sameFile) return FILES[move.fromCol];
+    if (!sameRank) return String(8 - move.fromRow);
+    return `${FILES[move.fromCol]}${8 - move.fromRow}`;
   }
 
   addPromotionMoves(row, col, toRow, toCol, moves, isEnPassant = false) {
@@ -518,7 +578,8 @@ class Board {
       status,
       fen_key: this.fenKey(),
       last_cpu: lastCpu,
-      depth
+      depth,
+      move_history: []
     };
   }
 }
@@ -799,6 +860,7 @@ class Game {
     this.engine = new ChessEngine();
     this.depth = 3;
     this.lastCpu = null;
+    this.moveHistory = [];
   }
 
   reset(depth = 3) {
@@ -806,6 +868,7 @@ class Game {
     this.engine = new ChessEngine();
     this.depth = this.cleanDepth(depth);
     this.lastCpu = null;
+    this.moveHistory = [];
     return this.state();
   }
 
@@ -814,7 +877,9 @@ class Game {
   }
 
   state() {
-    return this.board.toPayload(this.lastCpu, this.depth);
+    const payload = this.board.toPayload(this.lastCpu, this.depth);
+    payload.move_history = this.moveHistory.map((move) => ({ ...move }));
+    return payload;
   }
 
   legalMovesFrom(square) {
@@ -853,11 +918,15 @@ class Game {
     if (!move && promotion) move = this.board.moveFromUci(`${from}${to}`);
     if (!move) return { ok: false, error: "Illegal move.", state: this.state() };
 
+    const san = this.board.san(move);
+    const moveNumber = this.board.fullmoveNumber;
     this.board = this.board.makeMove(move);
+    this.moveHistory.push({ move_number: moveNumber, color: WHITE, san, uci: move.uci() });
     const afterHuman = this.board.gameStatus();
     return {
       ok: true,
       human_move: move.uci(),
+      human_san: san,
       awaiting_cpu: !afterHuman.game_over && this.board.turn === BLACK,
       state: this.state()
     };
@@ -879,11 +948,15 @@ class Game {
       stopped_early: result.stoppedEarly
     };
     let cpuMove = null;
+    let cpuSan = null;
     if (result.move) {
+      cpuSan = this.board.san(result.move);
+      const moveNumber = this.board.fullmoveNumber;
       this.board = this.board.makeMove(result.move);
       cpuMove = result.move.uci();
+      this.moveHistory.push({ move_number: moveNumber, color: BLACK, san: cpuSan, uci: cpuMove });
     }
-    return { ok: true, cpu_move: cpuMove, cpu_info: this.lastCpu, state: this.state() };
+    return { ok: true, cpu_move: cpuMove, cpu_san: cpuSan, cpu_info: this.lastCpu, state: this.state() };
   }
 }
 
@@ -891,34 +964,7 @@ function pieceImage(piece) {
   if (piece === EMPTY) return "";
 
   const isWhite = piece === piece.toUpperCase();
-  const body = isWhite ? "#f7f3e8" : "#242831";
-  const trim = isWhite ? "#c7a86a" : "#d5bb7a";
-  const stroke = isWhite ? "#32291c" : "#11151b";
-  const shine = isWhite ? "#ffffff" : "#5f6673";
-  const letter = piece.toUpperCase();
-
-  const shapes = {
-    P: '<ellipse class="piece-shadow" cx="50" cy="88" rx="25" ry="6"/><circle cx="50" cy="24" r="12"/><path d="M38 69c2-18 5-29 12-35 7 6 10 17 12 35z"/><path d="M30 78h40l5 11H25z"/><path class="piece-shine" d="M44 17c-5 3-6 8-5 12"/>',
-    N: '<ellipse class="piece-shadow" cx="50" cy="88" rx="27" ry="6"/><path d="M31 82h40l4 8H25z"/><path d="M36 79c9-9 12-18 12-28 0-12 8-24 23-30l12 16-10 7 8 13-10 22z"/><path class="piece-trim" d="M49 51c8-5 13-12 14-23"/><circle class="piece-eye" cx="63" cy="35" r="3"/>',
-    B: '<ellipse class="piece-shadow" cx="50" cy="88" rx="25" ry="6"/><circle cx="50" cy="18" r="8"/><path d="M35 70c2-26 8-41 15-50 7 9 13 24 15 50z"/><path d="M29 79h42l4 10H25z"/><path class="piece-trim" d="M43 44l15-16"/>',
-    R: '<ellipse class="piece-shadow" cx="50" cy="88" rx="27" ry="6"/><path d="M27 18h12v9h8v-9h10v9h8v-9h12v24H27z"/><path d="M35 42h30v35H35z"/><path d="M28 79h44l5 10H23z"/><path class="piece-trim" d="M36 52h28"/>',
-    Q: '<ellipse class="piece-shadow" cx="50" cy="88" rx="29" ry="6"/><circle cx="24" cy="25" r="7"/><circle cx="41" cy="16" r="7"/><circle cx="59" cy="16" r="7"/><circle cx="76" cy="25" r="7"/><path d="M27 34l8 40h30l8-40-16 18-7-27-7 27z"/><path d="M28 80h44l5 9H23z"/><path class="piece-trim" d="M35 72h30"/>',
-    K: '<ellipse class="piece-shadow" cx="50" cy="88" rx="28" ry="6"/><path d="M45 11h10v13h12v9H55v14H45V33H33v-9h12z"/><path d="M34 75c2-24 8-35 16-35s14 11 16 35z"/><path d="M27 80h46l5 9H22z"/><path class="piece-trim" d="M40 53c7-5 13-5 20 0"/>'
-  };
-
-  const bodyPaths = shapes[letter].replace(/<path class="piece-(trim|shine)"[^>]+>/g, "");
-  const trimPaths = shapes[letter].match(/<path class="piece-trim"[^>]+>/g)?.join("") || "";
-  const shinePaths = shapes[letter].match(/<path class="piece-shine"[^>]+>/g)?.join("") || "";
-
-  return `
-    <svg class="piece ${isWhite ? "white-piece" : "black-piece"}" viewBox="0 0 100 100" role="img" aria-label="${pieceNames[piece]}">
-      <g fill="${body}" stroke="${stroke}" stroke-width="3.4" stroke-linejoin="round" stroke-linecap="round">
-        ${bodyPaths}
-      </g>
-      <g fill="none" stroke="${trim}" stroke-width="2.2" stroke-linecap="round">${trimPaths}</g>
-      <g fill="none" stroke="${shine}" stroke-width="2.4" stroke-linecap="round">${shinePaths}</g>
-    </svg>
-  `;
+  return `<img class="piece ${isWhite ? "white-piece" : "black-piece"}" src="${pieceImages[piece]}" alt="${pieceNames[piece]}" draggable="false">`;
 }
 
 function runBrowserGame() {
@@ -928,15 +974,48 @@ function runBrowserGame() {
   const evaluationBox = document.getElementById("evaluationBox");
   const evaluationToggle = document.getElementById("evaluationToggle");
   const lastMoveBox = document.getElementById("lastMoveBox");
+  const moveHistoryBox = document.getElementById("moveHistoryBox");
+  const copyMovesBtn = document.getElementById("copyMovesBtn");
+  const backMoveBtn = document.getElementById("backMoveBtn");
+  const forwardMoveBtn = document.getElementById("forwardMoveBtn");
+  const replayStatus = document.getElementById("replayStatus");
   const newGameBtn = document.getElementById("newGameBtn");
   const depthSelect = document.getElementById("depthSelect");
   const game = new Game();
 
   let state = game.state();
+  let visualHistory = [{ state: cloneState(state), lastMoveSquares: [] }];
+  let historyCursor = 0;
   let selectedSquare = "";
   let legalMoves = [];
   let lastMoveSquares = [];
   let busy = false;
+
+  function cloneState(source) {
+    return {
+      ...source,
+      board: source.board.map((row) => row.slice()),
+      move_history: source.move_history.map((move) => ({ ...move })),
+      status: { ...source.status },
+      last_cpu: source.last_cpu ? { ...source.last_cpu } : null
+    };
+  }
+
+  function addVisualSnapshot(nextState, moveUci) {
+    visualHistory.push({
+      state: cloneState(nextState),
+      lastMoveSquares: moveUci ? [moveUci.slice(0, 2), moveUci.slice(2, 4)] : []
+    });
+    historyCursor = visualHistory.length - 1;
+  }
+
+  function currentSnapshot() {
+    return visualHistory[historyCursor] || visualHistory[visualHistory.length - 1];
+  }
+
+  function isViewingLivePosition() {
+    return historyCursor === visualHistory.length - 1;
+  }
 
   function fillDepthSelect() {
     for (let depth = 1; depth <= 10; depth += 1) {
@@ -958,6 +1037,7 @@ function runBrowserGame() {
     newGameBtn.disabled = value;
     depthSelect.disabled = value;
     evaluationToggle.disabled = value;
+    copyMovesBtn.disabled = value;
   }
 
   function animateMove(uci) {
@@ -979,7 +1059,7 @@ function runBrowserGame() {
   }
 
   function handleSquareClick(row, col) {
-    if (!state || busy || state.turn !== WHITE || state.status.game_over) return;
+    if (!state || busy || !isViewingLivePosition() || state.turn !== WHITE || state.status.game_over) return;
 
     const square = squareName(row, col);
     const piece = state.board[row][col];
@@ -1018,6 +1098,7 @@ function runBrowserGame() {
     selectedSquare = "";
     legalMoves = [];
     lastMoveSquares = [data.human_move.slice(0, 2), data.human_move.slice(2, 4)];
+    addVisualSnapshot(state, data.human_move);
     render();
     await new Promise((resolve) => requestAnimationFrame(resolve));
     await animateMove(data.human_move);
@@ -1035,7 +1116,10 @@ function runBrowserGame() {
         state = cpuData.state;
       } else {
         state = cpuData.state;
-        if (cpuData.cpu_move) lastMoveSquares = [cpuData.cpu_move.slice(0, 2), cpuData.cpu_move.slice(2, 4)];
+        if (cpuData.cpu_move) {
+          lastMoveSquares = [cpuData.cpu_move.slice(0, 2), cpuData.cpu_move.slice(2, 4)];
+          addVisualSnapshot(state, cpuData.cpu_move);
+        }
       }
       setBusy(false);
       render();
@@ -1053,14 +1137,38 @@ function runBrowserGame() {
     return `${pawns >= 0 ? "+" : ""}${pawns.toFixed(2)}`;
   }
 
+  function formatMoveHistory(moves) {
+    const lines = [];
+    for (const move of moves) {
+      if (move.color === WHITE) {
+        lines.push(`${move.move_number}. ${move.san}`);
+      } else if (lines.length) {
+        lines[lines.length - 1] += ` ${move.san}`;
+      } else {
+        lines.push(`${move.move_number}... ${move.san}`);
+      }
+    }
+    return lines.join("\n");
+  }
+
+  function setHistoryCursor(nextCursor) {
+    historyCursor = Math.max(0, Math.min(visualHistory.length - 1, nextCursor));
+    selectedSquare = "";
+    legalMoves = [];
+    render();
+  }
+
   function render() {
+    const snapshot = currentSnapshot();
+    const displayState = snapshot.state;
+    const displayLastMoveSquares = snapshot.lastMoveSquares;
     const legalTargets = new Set(legalMoves.map((move) => move.to));
     boardEl.innerHTML = "";
 
     for (let row = 0; row < 8; row += 1) {
       for (let col = 0; col < 8; col += 1) {
         const square = squareName(row, col);
-        const piece = state.board[row][col];
+        const piece = displayState.board[row][col];
         const button = document.createElement("button");
 
         button.type = "button";
@@ -1071,24 +1179,37 @@ function runBrowserGame() {
         button.dataset.square = square;
 
         if (square === selectedSquare) button.classList.add("selected");
-        if (legalTargets.has(square)) button.classList.add("legal");
-        if (lastMoveSquares.includes(square)) button.classList.add("last-move");
+        if (isViewingLivePosition() && legalTargets.has(square)) button.classList.add("legal");
+        if (displayLastMoveSquares.includes(square)) button.classList.add("last-move");
 
         button.addEventListener("click", () => handleSquareClick(row, col));
         boardEl.appendChild(button);
       }
     }
 
-    statusBox.textContent = state.status.message;
-    statusBox.classList.toggle("game-over", state.status.game_over);
+    statusBox.textContent = isViewingLivePosition()
+      ? state.status.message
+      : `Viewing move ${historyCursor} of ${visualHistory.length - 1}`;
+    statusBox.classList.toggle("game-over", isViewingLivePosition() && state.status.game_over);
     evaluationBox.hidden = !evaluationToggle.checked;
     if (evaluationToggle.checked) {
       evaluationBox.textContent = `Evaluation: ${formatEvaluation()} (positive is White)`;
     }
 
+    const moveText = formatMoveHistory(state.move_history);
+    moveHistoryBox.value = moveText;
+    copyMovesBtn.textContent = "Copy";
+    backMoveBtn.disabled = busy || historyCursor === 0;
+    forwardMoveBtn.disabled = busy || isViewingLivePosition();
+    replayStatus.textContent = isViewingLivePosition()
+      ? "Live position"
+      : `${historyCursor}/${visualHistory.length - 1}`;
+
     if (state.last_cpu) {
       const early = state.last_cpu.stopped_early ? "; time cutoff" : "";
-      lastMoveBox.textContent = `Last CPU move: ${state.last_cpu.move || "none"}; depth: ${state.last_cpu.completed_depth}; nodes: ${state.last_cpu.nodes}${early}`;
+      const lastBlackMove = state.move_history.filter((move) => move.color === BLACK).at(-1);
+      const label = lastBlackMove ? `${lastBlackMove.san} (${state.last_cpu.move})` : state.last_cpu.move || "none";
+      lastMoveBox.textContent = `Last CPU move: ${label}; depth: ${state.last_cpu.completed_depth}; nodes: ${state.last_cpu.nodes}${early}`;
     } else {
       lastMoveBox.textContent = "Last CPU move: none";
     }
@@ -1096,12 +1217,42 @@ function runBrowserGame() {
 
   evaluationToggle.addEventListener("change", render);
 
+  copyMovesBtn.addEventListener("click", async () => {
+    moveHistoryBox.select();
+    try {
+      await navigator.clipboard.writeText(moveHistoryBox.value);
+      copyMovesBtn.textContent = "Copied";
+    } catch {
+      document.execCommand("copy");
+      copyMovesBtn.textContent = "Copied";
+    }
+  });
+
+  backMoveBtn.addEventListener("click", () => setHistoryCursor(historyCursor - 1));
+  forwardMoveBtn.addEventListener("click", () => setHistoryCursor(historyCursor + 1));
+
+  document.addEventListener("keydown", (event) => {
+    const target = event.target;
+    const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+    if (isTyping || busy) return;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setHistoryCursor(historyCursor - 1);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setHistoryCursor(historyCursor + 1);
+    }
+  });
+
   newGameBtn.addEventListener("click", () => {
     setBusy(true);
     selectedSquare = "";
     legalMoves = [];
     lastMoveSquares = [];
     state = game.reset(Number(depthSelect.value));
+    visualHistory = [{ state: cloneState(state), lastMoveSquares: [] }];
+    historyCursor = 0;
     setBusy(false);
     render();
   });
