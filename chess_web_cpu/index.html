@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chess</title>
+  <link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+  <main>
+    <h1>Chess</h1>
+    <p>You play White.</p>
+
+    <div class="controls">
+      <label for="depthSelect">CPU depth</label>
+      <select id="depthSelect"></select>
+      <label class="toggle-control">
+        <input id="evaluationToggle" type="checkbox">
+        Show evaluation
+      </label>
+      <button id="newGameBtn" type="button">New game</button>
+    </div>
+
+    <p id="statusBox">Loading...</p>
+    <p id="thinkingBox" hidden>CPU is thinking...</p>
+    <p id="evaluationBox" hidden>Evaluation: 0.00</p>
+
+    <div id="board" class="board" aria-label="Chess board"></div>
+
+    <p id="lastMoveBox">Last CPU move: none</p>
+  </main>
+
+  <script src="static/js/app.js"></script>
+</body>
+</html>
