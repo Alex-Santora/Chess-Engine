@@ -24,7 +24,7 @@ body {
 }
 
 main {
-  max-width: 760px;
+  max-width: 980px;
   margin: 0 auto;
 }
 
@@ -103,8 +103,16 @@ select:disabled {
   font-weight: bold;
 }
 
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 600px) minmax(260px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .board {
-  width: min(92vw, 600px);
+  width: 100%;
+  max-width: 600px;
   aspect-ratio: 1 / 1;
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -118,6 +126,7 @@ select:disabled {
 
 .square {
   position: relative;
+  container-type: size;
   border: 0;
   margin: 0;
   padding: 0;
@@ -147,33 +156,26 @@ select:disabled {
   position: relative;
   z-index: 1;
   display: block;
-  width: 84%;
-  height: 84%;
+  width: 86%;
+  height: 86%;
+  object-fit: contain;
+  user-select: none;
   pointer-events: none;
   transform-origin: center;
   transition: transform 120ms ease;
-  filter: drop-shadow(0 5px 4px rgba(0,0,0,0.28));
+  filter: drop-shadow(0 7px 6px rgba(0,0,0,0.28));
 }
 
 .square:hover .piece {
   transform: translateY(-2px);
 }
 
-.piece-shadow {
-  fill: rgba(0,0,0,0.18);
-  stroke: none;
-}
-
-.piece-eye {
-  fill: currentColor;
-}
-
 .white-piece {
-  color: #232323;
+  color: #f8f5ea;
 }
 
 .black-piece {
-  color: #f1e8d5;
+  color: #252a31;
 }
 
 .selected::after {
@@ -202,4 +204,77 @@ select:disabled {
 
 #lastMoveBox {
   min-height: 24px;
+}
+
+.move-panel {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(280px, 1fr) auto;
+  gap: 10px;
+}
+
+.history-header,
+.replay-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-header {
+  justify-content: space-between;
+}
+
+.history-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.history-header button,
+.replay-controls button {
+  min-height: 34px;
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: #282c34;
+  color: white;
+  border-color: #282c34;
+}
+
+.replay-controls button {
+  width: 42px;
+  padding: 6px 0;
+  font-size: 1.15rem;
+}
+
+.history-header button:disabled,
+.replay-controls button:disabled {
+  opacity: 0.55;
+}
+
+#moveHistoryBox {
+  width: 100%;
+  min-height: 280px;
+  resize: vertical;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fffdf7;
+  color: var(--ink);
+  font-family: Consolas, "Courier New", monospace;
+  line-height: 1.5;
+}
+
+#replayStatus {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 840px) {
+  main {
+    max-width: 640px;
+  }
+
+  .game-layout {
+    grid-template-columns: 1fr;
+  }
 }
